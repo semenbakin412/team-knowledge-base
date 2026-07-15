@@ -1,0 +1,12 @@
+# Секреты и runtime-данные
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Виртуальное окружение
+venv/
+
+# OS
+.DS_Store
