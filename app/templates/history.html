@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>История вопросов</h2>
+
+<!-- Фильтр + экспорт -->
+<div class="mb-3 d-flex gap-2">
+    <button class="btn btn-outline-primary" onclick="loadHistory(false)">Все вопросы</button>
+    <button class="btn btn-outline-danger" onclick="loadHistory(true)">Только требующие проверки</button>
+    <a href="/export/qa_runs" class="btn btn-outline-success">Экспорт QA (JSON)</a>
+    <a href="/export/audit" class="btn btn-outline-secondary">Экспорт аудита (JSON)</a>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Дата</th>
+            <th>Вопрос</th>
+            <th>Требует проверки</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody id="historyTable"></tbody>
+</table>
+
+<!-- Модальное окно -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Детали вопроса</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function loadHistory(filterReview) {
+    // Получаем все qa_runs из базы (через API)
+    const response = await fetch('/kb/history');
+    const items = await response.json();
+    
+    const filtered = filterReview 
+        ? items.filter(i => i.needs_review) 
+        : items;
+    
+    const tbody = document.getElementById('historyTable');
+    tbody.innerHTML = '';
+    
+    filtered.slice(0, 100).forEach(item => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${item.created_at}</td>
+                <td>${item.question.substring(0, 50)}...</td>
+                <td>${item.needs_review ? '<span class="badge bg-danger">Да</span>' : '<span class="badge bg-success">Нет</span>'}</td>
+                <td><button class="btn btn-sm btn-info" onclick="showDetail(${JSON.stringify(item).replace(/"/g, '&quot;')})">Открыть</button></td>
+            </tr>
+        `;
+    });
+}
+
+function showDetail(item) {
+    let sourcesHtml = '';
+    if (item.sources_json) {
+        try {
+            const sources = JSON.parse(item.sources_json);
+            if (sources.length > 0) {
+                sourcesHtml = '<h6>Источники:</h6><ul>';
+                sources.forEach(s => {
+                    sourcesHtml += `<li>Документ #${s.document_id}: "${s.quote}"</li>`;
+                });
+                sourcesHtml += '</ul>';
+            } else {
+                sourcesHtml = '<p><em>Источники не найдены</em></p>';
+            }
+        } catch(e) {
+            sourcesHtml = '<p><em>Источники не обработаны</em></p>';
+        }
+    }
+    let html = `
+        <p><strong>Вопрос:</strong> ${item.question}</p>
+        <p><strong>Ответ:</strong> ${item.answer || 'Нет ответа'}</p>
+        ${sourcesHtml}
+        <p><strong>Требует проверки:</strong> ${item.needs_review ? 'Да' : 'Нет'}</p>
+        ${item.error ? `<p><strong>Причина:</strong> ${item.error}</p>` : ''}
+    `;
+    document.getElementById('modalBody').innerHTML = html;
+    new bootstrap.Modal(document.getElementById('detailModal')).show();
+}
+
+loadHistory(false);
+</script>
+{% endblock %}
